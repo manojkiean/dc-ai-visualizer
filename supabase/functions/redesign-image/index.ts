@@ -21,7 +21,7 @@ serve(async (req) => {
     }
 
     // Validate style against allowed values
-    const allowedStyles = ["scandinavian", "modern", "cozy", "industrial", "boho", "luxury"];
+    const allowedStyles = ["scandinavian", "modern", "cozy", "industrial", "boho", "minimalist", "rustic", "luxury"];
     if (!style || !allowedStyles.includes(style.toLowerCase())) {
       return new Response(
         JSON.stringify({ error: `Invalid style. Must be one of: ${allowedStyles.join(", ")}` }),
