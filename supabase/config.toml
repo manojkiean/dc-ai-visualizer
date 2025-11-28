@@ -1,1 +1,4 @@
 project_id = "ceytvviqvpxgfuryigyr"
+
+[functions.redesign-image]
+verify_jwt = false
