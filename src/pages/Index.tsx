@@ -52,55 +52,11 @@ const Index = () => {
       return;
     }
 
-    setIsGenerating(true);
-    setGeneratedImage(null);
-
-    try {
-      const apiKey = localStorage.getItem("gemini_api_key");
-      if (!apiKey) {
-        navigate("/auth");
-        return;
-      }
-
-      // Convert image to base64
-      const reader = new FileReader();
-      const imageData = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redesign-image`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ imageData, style: selectedStyle, apiKey }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to redesign image");
-      }
-
-      const data = await response.json();
-
-      if (data?.generatedImage) {
-        setGeneratedImage(data.generatedImage);
-        toast({
-          title: "Success!",
-          description: "Your image has been redesigned",
-        });
-      }
-    } catch (error) {
-      console.error("Error generating image:", error);
-      toast({
-        title: "Error",
-        description: "Failed to redesign image. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
+    toast({
+      title: "Backend Required",
+      description: "Image generation requires a backend service to be configured.",
+      variant: "destructive",
+    });
   };
 
   return (
