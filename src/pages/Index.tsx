@@ -6,12 +6,10 @@ import { ResultDisplay } from "@/components/ResultDisplay";
 import { Button } from "@/components/ui/button";
 import { Sparkles, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-bg.jpg";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -20,28 +18,16 @@ const Index = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check auth state
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setUser(session.user);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setUser(session.user);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // Check if API key exists
+    const apiKey = localStorage.getItem("gemini_api_key");
+    if (!apiKey) {
+      navigate("/auth");
+    }
   }, [navigate]);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = () => {
+    localStorage.removeItem("gemini_api_key");
+    navigate("/auth");
   };
 
   const handleImageSelect = (file: File, preview: string) => {
@@ -70,6 +56,12 @@ const Index = () => {
     setGeneratedImage(null);
 
     try {
+      const apiKey = localStorage.getItem("gemini_api_key");
+      if (!apiKey) {
+        navigate("/auth");
+        return;
+      }
+
       // Convert image to base64
       const reader = new FileReader();
       const imageData = await new Promise<string>((resolve, reject) => {
@@ -78,11 +70,19 @@ const Index = () => {
         reader.readAsDataURL(selectedFile);
       });
 
-      const { data, error } = await supabase.functions.invoke("redesign-image", {
-        body: { imageData, style: selectedStyle },
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redesign-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageData, style: selectedStyle, apiKey }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error("Failed to redesign image");
+      }
+
+      const data = await response.json();
 
       if (data?.generatedImage) {
         setGeneratedImage(data.generatedImage);
@@ -102,10 +102,6 @@ const Index = () => {
       setIsGenerating(false);
     }
   };
-
-  if (!user) {
-    return null; // Will redirect to auth
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-secondary">
