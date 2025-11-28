@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,36 +50,42 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [apiKey, setApiKey] = useState("");
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/");
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // Check if API key is already stored
+    const storedKey = localStorage.getItem("gemini_api_key");
+    if (storedKey) {
+      navigate("/");
+    }
   }, [navigate]);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const validateApiKey = async (key: string): Promise<boolean> => {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Hello" }] }],
+          }),
+        }
+      );
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!apiKey.trim()) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Please fill in all fields",
+        description: "Please enter your Gemini API key",
       });
       return;
     }
@@ -88,34 +93,30 @@ export default function Auth() {
     try {
       setLoading(true);
       
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-          },
-        });
-        
-        if (error) throw error;
-        
+      const isValid = await validateApiKey(apiKey);
+      
+      if (!isValid) {
         toast({
-          title: "Success",
-          description: "Account created successfully!",
+          variant: "destructive",
+          title: "Invalid API Key",
+          description: "Please check your Gemini API key and try again",
         });
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        
-        if (error) throw error;
+        return;
       }
-    } catch (error: any) {
+
+      localStorage.setItem("gemini_api_key", apiKey);
+      
+      toast({
+        title: "Success!",
+        description: "API key validated successfully",
+      });
+      
+      navigate("/");
+    } catch (error) {
       toast({
         variant: "destructive",
-        title: "Authentication Error",
-        description: error.message,
+        title: "Error",
+        description: "Failed to validate API key. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -151,35 +152,33 @@ export default function Auth() {
               AI Designer
             </CardTitle>
             <CardDescription className="text-base">
-              {isSignUp ? "Create an account to get started" : "Sign in to explore design possibilities"}
+              Enter your Gemini API key to get started
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <form onSubmit={handleAuth} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="apiKey">Gemini API Key</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
+                  id="apiKey"
                   type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your API key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
                   disabled={loading}
                   required
-                  minLength={6}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Get your API key from{" "}
+                  <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Google AI Studio
+                  </a>
+                </p>
               </div>
               <Button
                 type="submit"
@@ -190,20 +189,10 @@ export default function Auth() {
                 {loading ? (
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 ) : (
-                  isSignUp ? "Sign Up" : "Sign In"
+                  "Continue"
                 )}
               </Button>
             </form>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                disabled={loading}
-              >
-                {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
-              </button>
-            </div>
           </CardContent>
         </Card>
       </div>
