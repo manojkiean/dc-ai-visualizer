@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
+import { RoomTypeSelector } from "@/components/RoomTypeSelector";
+import { ApplianceSelector } from "@/components/ApplianceSelector";
 import { ResultDisplay } from "@/components/ResultDisplay";
 import { Button } from "@/components/ui/button";
 import { Sparkles, LogOut } from "lucide-react";
@@ -13,6 +15,8 @@ const Index = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [selectedAppliances, setSelectedAppliances] = useState<string[]>([]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
@@ -39,7 +43,17 @@ const Index = () => {
   const handleClear = () => {
     setSelectedFile(null);
     setSelectedImagePreview(null);
+    setSelectedRoom(null);
+    setSelectedAppliances([]);
     setGeneratedImage(null);
+  };
+
+  const handleApplianceToggle = (applianceId: string) => {
+    setSelectedAppliances(prev => 
+      prev.includes(applianceId) 
+        ? prev.filter(id => id !== applianceId)
+        : [...prev, applianceId]
+    );
   };
 
   const handleGenerate = async () => {
@@ -66,7 +80,12 @@ const Index = () => {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redesign-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData, style: selectedStyle }),
+        body: JSON.stringify({ 
+          imageData, 
+          style: selectedStyle,
+          roomType: selectedRoom,
+          appliances: selectedAppliances 
+        }),
       });
 
       const data = await response.json();
@@ -144,6 +163,25 @@ const Index = () => {
             onClear={handleClear}
           />
         </section>
+
+        {selectedImagePreview && (
+          <section className="max-w-6xl mx-auto">
+            <RoomTypeSelector
+              selectedRoom={selectedRoom}
+              onRoomSelect={setSelectedRoom}
+            />
+          </section>
+        )}
+
+        {selectedImagePreview && selectedRoom && (
+          <section className="max-w-6xl mx-auto">
+            <ApplianceSelector
+              roomType={selectedRoom}
+              selectedAppliances={selectedAppliances}
+              onApplianceToggle={handleApplianceToggle}
+            />
+          </section>
+        )}
 
         {selectedImagePreview && (
           <section className="max-w-6xl mx-auto">
