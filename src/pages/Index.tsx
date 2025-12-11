@@ -52,11 +52,46 @@ const Index = () => {
       return;
     }
 
-    toast({
-      title: "Backend Required",
-      description: "Image generation requires a backend service to be configured.",
-      variant: "destructive",
-    });
+    setIsGenerating(true);
+    setGeneratedImage(null);
+
+    try {
+      const reader = new FileReader();
+      const imageData = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redesign-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData, style: selectedStyle }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to redesign image");
+      }
+
+      if (data?.generatedImage) {
+        setGeneratedImage(data.generatedImage);
+        toast({
+          title: "Success!",
+          description: "Your image has been redesigned",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating image:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to redesign image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
