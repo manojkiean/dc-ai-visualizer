@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { imageData, style } = await req.json();
+    const { imageData, style, roomType, appliances } = await req.json();
     
     if (!imageData || !style) {
       return new Response(
@@ -36,8 +36,64 @@ serve(async (req) => {
       rustic: "Rustic farmhouse style with natural wood, vintage elements, warm colors, and country charm"
     };
 
+    const applianceDescriptions: Record<string, string> = {
+      "smart-fridge": "modern stainless steel smart refrigerator",
+      "induction-cooktop": "sleek glass induction cooktop",
+      "dishwasher": "built-in dishwasher",
+      "microwave": "built-in microwave oven",
+      "coffee-machine": "professional-grade coffee machine",
+      "range-hood": "modern range hood",
+      "wine-cooler": "wine cooler cabinet",
+      "smart-oven": "smart connected oven",
+      "smart-tv": "wall-mounted smart TV",
+      "air-purifier": "modern air purifier",
+      "smart-lighting": "smart ambient lighting system",
+      "humidifier": "sleek ultrasonic humidifier",
+      "smart-blinds": "motorized smart blinds",
+      "bedside-charger": "wireless charging nightstand",
+      "large-tv": "large 4K OLED TV",
+      "soundbar": "premium soundbar system",
+      "smart-speaker": "smart speaker device",
+      "fireplace": "modern electric fireplace",
+      "robot-vacuum": "robot vacuum cleaner",
+      "air-conditioner": "wall-mounted split AC unit",
+      "gaming-console": "gaming entertainment setup",
+      "smart-mirror": "LED-lit smart mirror",
+      "heated-floor": "heated floor system",
+      "smart-toilet": "modern smart toilet with bidet",
+      "towel-warmer": "heated towel rack",
+      "exhaust-fan": "modern exhaust fan",
+      "water-heater": "tankless water heater",
+      "standing-desk": "motorized standing desk",
+      "monitor-setup": "multi-monitor workstation",
+      "desk-lamp": "smart LED desk lamp",
+      "air-purifier-office": "compact air purifier",
+      "printer": "all-in-one printer",
+      "webcam": "HD webcam setup",
+      "grill": "outdoor smart grill",
+      "outdoor-speakers": "weather-resistant outdoor speakers",
+      "patio-heater": "infrared patio heater",
+      "outdoor-lighting": "solar-powered garden lights",
+      "pool-equipment": "pool cleaning equipment",
+      "irrigation": "smart irrigation system"
+    };
+
     const stylePrompt = styleDescriptions[style] || style;
-    const prompt = `Transform this interior room photo into a ${stylePrompt}. Keep the same room layout and perspective, but completely redesign the furniture, decor, colors, and styling to match the ${style} aesthetic. Make it look like a professional interior design rendering. Ultra high resolution, photorealistic.`;
+    
+    let appliancePrompt = "";
+    if (appliances && appliances.length > 0) {
+      const applianceList = appliances
+        .map((id: string) => applianceDescriptions[id] || id.replace(/-/g, " "))
+        .join(", ");
+      appliancePrompt = ` Include these appliances/features in the design: ${applianceList}.`;
+    }
+
+    let roomPrompt = "";
+    if (roomType) {
+      roomPrompt = ` This is a ${roomType.replace(/-/g, " ")} space.`;
+    }
+
+    const prompt = `Transform this interior room photo into a ${stylePrompt}.${roomPrompt}${appliancePrompt} Keep the same room layout and perspective, but completely redesign the furniture, decor, colors, and styling to match the ${style} aesthetic. Make it look like a professional interior design rendering. Ultra high resolution, photorealistic.`;
 
     console.log("Generating redesigned image with style:", style);
 
