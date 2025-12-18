@@ -16,13 +16,15 @@ const Index = () => {
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
+  const [isDetectingRoom, setIsDetectingRoom] = useState(false);
+  const [customRoomName, setCustomRoomName] = useState("");
   const [selectedAppliances, setSelectedAppliances] = useState<string[]>([]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if API key exists
     const apiKey = localStorage.getItem("gemini_api_key");
     if (!apiKey) {
       navigate("/auth");
@@ -34,16 +36,61 @@ const Index = () => {
     navigate("/auth");
   };
 
-  const handleImageSelect = (file: File, preview: string) => {
+  const detectRoomType = async (imageData: string) => {
+    setIsDetectingRoom(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/detect-room`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.roomType) {
+        setDetectedRoom(data.roomType);
+        setSelectedRoom(data.roomType);
+        
+        if (data.roomType === "other" && data.description) {
+          setCustomRoomName(data.description);
+        }
+
+        toast({
+          title: "Room detected",
+          description: `Detected as ${data.roomType.replace("-", " ")}${data.confidence ? ` (${Math.round(data.confidence * 100)}% confidence)` : ""}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error detecting room:", error);
+      // Don't show error toast, just let user select manually
+    } finally {
+      setIsDetectingRoom(false);
+    }
+  };
+
+  const handleImageSelect = async (file: File, preview: string) => {
     setSelectedFile(file);
     setSelectedImagePreview(preview);
     setGeneratedImage(null);
+    setDetectedRoom(null);
+    setSelectedRoom(null);
+    setCustomRoomName("");
+    setSelectedAppliances([]);
+
+    // Auto-detect room type
+    const reader = new FileReader();
+    reader.onload = () => {
+      detectRoomType(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleClear = () => {
     setSelectedFile(null);
     setSelectedImagePreview(null);
     setSelectedRoom(null);
+    setDetectedRoom(null);
+    setCustomRoomName("");
     setSelectedAppliances([]);
     setGeneratedImage(null);
   };
@@ -77,13 +124,18 @@ const Index = () => {
         reader.readAsDataURL(selectedFile);
       });
 
+      // Use custom room name for "other" type
+      const roomTypeToSend = selectedRoom === "other" && customRoomName 
+        ? customRoomName 
+        : selectedRoom;
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redesign-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           imageData, 
           style: selectedStyle,
-          roomType: selectedRoom,
+          roomType: roomTypeToSend,
           appliances: selectedAppliances 
         }),
       });
@@ -169,6 +221,10 @@ const Index = () => {
             <RoomTypeSelector
               selectedRoom={selectedRoom}
               onRoomSelect={setSelectedRoom}
+              detectedRoom={detectedRoom}
+              isDetecting={isDetectingRoom}
+              customRoomName={customRoomName}
+              onCustomRoomChange={setCustomRoomName}
             />
           </section>
         )}
@@ -176,7 +232,7 @@ const Index = () => {
         {selectedImagePreview && selectedRoom && (
           <section className="max-w-6xl mx-auto">
             <ApplianceSelector
-              roomType={selectedRoom}
+              roomType={selectedRoom === "other" ? "living-room" : selectedRoom}
               selectedAppliances={selectedAppliances}
               onApplianceToggle={handleApplianceToggle}
             />
