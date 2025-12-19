@@ -1,7 +1,0 @@
-project_id = "ceytvviqvpxgfuryigyr"
-
-[functions.redesign-image]
-verify_jwt = false
-
-[functions.detect-room]
-verify_jwt = false
