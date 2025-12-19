@@ -16,8 +16,6 @@ const Index = () => {
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-  const [detectedRoom, setDetectedRoom] = useState<string | null>(null);
-  const [isDetectingRoom, setIsDetectingRoom] = useState(false);
   const [customRoomName, setCustomRoomName] = useState("");
   const [selectedAppliances, setSelectedAppliances] = useState<string[]>([]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -36,60 +34,19 @@ const Index = () => {
     navigate("/auth");
   };
 
-  const detectRoomType = async (imageData: string) => {
-    setIsDetectingRoom(true);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/detect-room`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.roomType) {
-        setDetectedRoom(data.roomType);
-        setSelectedRoom(data.roomType);
-        
-        if (data.roomType === "other" && data.description) {
-          setCustomRoomName(data.description);
-        }
-
-        toast({
-          title: "Room detected",
-          description: `Detected as ${data.roomType.replace("-", " ")}${data.confidence ? ` (${Math.round(data.confidence * 100)}% confidence)` : ""}`,
-        });
-      }
-    } catch (error) {
-      console.error("Error detecting room:", error);
-      // Don't show error toast, just let user select manually
-    } finally {
-      setIsDetectingRoom(false);
-    }
-  };
-
   const handleImageSelect = async (file: File, preview: string) => {
     setSelectedFile(file);
     setSelectedImagePreview(preview);
     setGeneratedImage(null);
-    setDetectedRoom(null);
     setSelectedRoom(null);
     setCustomRoomName("");
     setSelectedAppliances([]);
-
-    // Auto-detect room type
-    const reader = new FileReader();
-    reader.onload = () => {
-      detectRoomType(reader.result as string);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleClear = () => {
     setSelectedFile(null);
     setSelectedImagePreview(null);
     setSelectedRoom(null);
-    setDetectedRoom(null);
     setCustomRoomName("");
     setSelectedAppliances([]);
     setGeneratedImage(null);
@@ -113,6 +70,17 @@ const Index = () => {
       return;
     }
 
+    const apiKey = localStorage.getItem("gemini_api_key");
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Please add your Gemini API key",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+
     setIsGenerating(true);
     setGeneratedImage(null);
 
@@ -124,35 +92,81 @@ const Index = () => {
         reader.readAsDataURL(selectedFile);
       });
 
+      // Extract base64 data from data URL
+      const base64Data = imageData.split(",")[1];
+      const mimeType = imageData.split(";")[0].split(":")[1];
+
       // Use custom room name for "other" type
       const roomTypeToSend = selectedRoom === "other" && customRoomName 
         ? customRoomName 
         : selectedRoom;
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redesign-image`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          imageData, 
-          style: selectedStyle,
-          roomType: roomTypeToSend,
-          appliances: selectedAppliances 
-        }),
-      });
+      // Build the prompt
+      const styleDescriptions: Record<string, string> = {
+        modern: "clean lines, minimalist furniture, neutral colors with bold accents, contemporary design",
+        scandinavian: "light wood, white walls, cozy textiles, hygge atmosphere, functional simplicity",
+        industrial: "exposed brick, metal fixtures, raw materials, urban loft aesthetic",
+        boho: "eclectic patterns, plants, natural textures, warm earth tones, artistic flair",
+        luxury: "high-end materials, elegant furnishings, sophisticated color palette, premium finishes",
+        cozy: "warm lighting, soft textures, comfortable furniture, inviting atmosphere"
+      };
+
+      const styleDescription = styleDescriptions[selectedStyle] || selectedStyle;
+      
+      let prompt = `Transform this interior space into a ${selectedStyle} style design. 
+Apply these design characteristics: ${styleDescription}.
+${roomTypeToSend ? `This is a ${roomTypeToSend}.` : ""}
+${selectedAppliances.length > 0 ? `Include or enhance these elements: ${selectedAppliances.join(", ")}.` : ""}
+Keep the same room layout and perspective. Generate a photorealistic redesigned version of this space.`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Data
+                  }
+                }
+              ]
+            }],
+            generationConfig: {
+              responseModalities: ["image", "text"],
+              responseMimeType: "image/png"
+            }
+          }),
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to redesign image");
+        throw new Error(data.error?.message || "Failed to redesign image");
       }
 
-      if (data?.generatedImage) {
-        setGeneratedImage(data.generatedImage);
-        toast({
-          title: "Success!",
-          description: "Your image has been redesigned",
-        });
+      // Extract generated image from response
+      const candidates = data.candidates;
+      if (candidates && candidates[0]?.content?.parts) {
+        for (const part of candidates[0].content.parts) {
+          if (part.inline_data) {
+            const generatedImageUrl = `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
+            setGeneratedImage(generatedImageUrl);
+            toast({
+              title: "Success!",
+              description: "Your image has been redesigned",
+            });
+            return;
+          }
+        }
       }
+
+      throw new Error("No image generated in response");
     } catch (error) {
       console.error("Error generating image:", error);
       toast({
@@ -221,8 +235,8 @@ const Index = () => {
             <RoomTypeSelector
               selectedRoom={selectedRoom}
               onRoomSelect={setSelectedRoom}
-              detectedRoom={detectedRoom}
-              isDetecting={isDetectingRoom}
+              detectedRoom={null}
+              isDetecting={false}
               customRoomName={customRoomName}
               onCustomRoomChange={setCustomRoomName}
             />
@@ -276,7 +290,7 @@ const Index = () => {
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-muted-foreground border-t border-border mt-20">
-        <p>Powered by Lovable AI • Transform your spaces with artificial intelligence</p>
+        <p>Powered by Gemini AI • Transform your spaces with artificial intelligence</p>
       </footer>
     </div>
   );
