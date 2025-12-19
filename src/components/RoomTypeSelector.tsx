@@ -8,6 +8,7 @@ import {
   Sofa, 
   Bath, 
   Briefcase,
+  Building2,
   TreeDeciduous,
   HelpCircle,
   Loader2,
@@ -20,7 +21,8 @@ const roomTypes = [
   { id: "living-room", name: "Living Room", icon: Sofa },
   { id: "bathroom", name: "Bathroom", icon: Bath },
   { id: "office", name: "Office", icon: Briefcase },
-  { id: "outdoor", name: "Outdoor/Garden", icon: TreeDeciduous },
+  { id: "exterior", name: "Exterior", icon: Building2 },
+  { id: "garden", name: "Garden", icon: TreeDeciduous },
   { id: "other", name: "Other", icon: HelpCircle },
 ];
 
@@ -73,7 +75,7 @@ export const RoomTypeSelector = ({
         )}
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         {roomTypes.map((room) => {
           const Icon = room.icon;
           const isSelected = selectedRoom === room.id;

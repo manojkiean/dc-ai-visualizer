@@ -43,12 +43,20 @@ serve(async (req) => {
                 type: "text", 
                 text: `Analyze this room image and identify the room type. Respond with ONLY a JSON object in this exact format:
 {
-  "roomType": "kitchen" | "bedroom" | "living-room" | "bathroom" | "office" | "outdoor" | "other",
+  "roomType": "kitchen" | "bedroom" | "living-room" | "bathroom" | "office" | "exterior" | "garden" | "other",
   "confidence": 0.0 to 1.0,
   "description": "brief description of what you see"
 }
 
-Only use these exact room type values: kitchen, bedroom, living-room, bathroom, office, outdoor, or other if it doesn't fit.`
+Only use these exact room type values: 
+- kitchen (indoor cooking area)
+- bedroom (sleeping area)
+- living-room (lounge/sitting area)
+- bathroom (bathing area)
+- office (workspace)
+- exterior (building exterior, garage, patio, balcony, driveway, fence, porch)
+- garden (outdoor green spaces, landscaping, lawn, pool area, backyard with plants)
+- other (if it doesn't fit any category)`
               },
               { type: "image_url", image_url: { url: imageData } }
             ]
