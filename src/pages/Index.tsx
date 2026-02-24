@@ -137,8 +137,7 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
               ]
             }],
             generationConfig: {
-              responseModalities: ["image", "text"],
-              responseMimeType: "image/png"
+              responseModalities: ["image", "text"]
             }
           }),
         }
