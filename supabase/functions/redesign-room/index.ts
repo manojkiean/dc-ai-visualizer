@@ -54,6 +54,8 @@ serve(async (req) => {
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("AI gateway error:", response.status, errorText);
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
@@ -66,20 +68,46 @@ serve(async (req) => {
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`AI gateway error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log("Received response from AI gateway");
+    console.log("Full AI gateway response structure:", JSON.stringify(Object.keys(data)));
+    
+    const message = data.choices?.[0]?.message;
+    console.log("Message keys:", message ? JSON.stringify(Object.keys(message)) : "no message");
+    console.log("Message content type:", typeof message?.content);
+    console.log("Message images:", message?.images ? JSON.stringify(message.images.length) : "no images field");
 
-    const imageUrl =
-      data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    const textContent = data.choices?.[0]?.message?.content;
+    // Try images array first (documented format)
+    let imageUrl = message?.images?.[0]?.image_url?.url;
+
+    // Fallback: check if content contains base64 image data
+    if (!imageUrl && message?.content) {
+      // Some responses may embed image data differently
+      if (typeof message.content === "string" && message.content.startsWith("data:image")) {
+        imageUrl = message.content;
+      }
+      // Check if content is an array with image parts
+      if (Array.isArray(message.content)) {
+        for (const part of message.content) {
+          if (part.type === "image_url" && part.image_url?.url) {
+            imageUrl = part.image_url.url;
+            break;
+          }
+          if (part.type === "image" && part.image?.url) {
+            imageUrl = part.image.url;
+            break;
+          }
+        }
+      }
+    }
+
+    const textContent = typeof message?.content === "string" ? message.content : "";
 
     if (!imageUrl) {
-      throw new Error("No image was generated in the response");
+      console.error("Full response data:", JSON.stringify(data).substring(0, 2000));
+      throw new Error("No image was generated. The AI model may not have produced an image for this request. Please try again.");
     }
 
     return new Response(

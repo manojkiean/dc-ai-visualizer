@@ -10,6 +10,34 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-bg.jpg";
 
+const resizeImage = (file: File, maxSize: number): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
+
 const Index = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
@@ -61,15 +89,10 @@ const Index = () => {
     setGeneratedImage(null);
 
     try {
-      const reader = new FileReader();
-      const imageData = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-
-      const base64Data = imageData.split(",")[1];
-      const mimeType = imageData.split(";")[0].split(":")[1];
+      // Resize image to max 1024px to stay within payload limits
+      const resizedDataUrl = await resizeImage(selectedFile, 1024);
+      const base64Data = resizedDataUrl.split(",")[1];
+      const mimeType = resizedDataUrl.split(";")[0].split(":")[1];
 
       const roomTypeToSend = selectedRoom === "other" && customRoomName
         ? customRoomName
