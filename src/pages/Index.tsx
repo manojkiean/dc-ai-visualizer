@@ -1,17 +1,16 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
 import { RoomTypeSelector } from "@/components/RoomTypeSelector";
 import { ApplianceSelector } from "@/components/ApplianceSelector";
 import { ResultDisplay } from "@/components/ResultDisplay";
 import { Button } from "@/components/ui/button";
-import { Sparkles, LogOut } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-bg.jpg";
 
 const Index = () => {
-  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -21,18 +20,6 @@ const Index = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) {
-      navigate("/auth");
-    }
-  }, [navigate]);
-
-  const handleSignOut = () => {
-    localStorage.removeItem("gemini_api_key");
-    navigate("/auth");
-  };
 
   const handleImageSelect = async (file: File, preview: string) => {
     setSelectedFile(file);
@@ -53,8 +40,8 @@ const Index = () => {
   };
 
   const handleApplianceToggle = (applianceId: string) => {
-    setSelectedAppliances(prev => 
-      prev.includes(applianceId) 
+    setSelectedAppliances(prev =>
+      prev.includes(applianceId)
         ? prev.filter(id => id !== applianceId)
         : [...prev, applianceId]
     );
@@ -70,17 +57,6 @@ const Index = () => {
       return;
     }
 
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) {
-      toast({
-        title: "API Key Required",
-        description: "Please add your Gemini API key",
-        variant: "destructive",
-      });
-      navigate("/auth");
-      return;
-    }
-
     setIsGenerating(true);
     setGeneratedImage(null);
 
@@ -92,16 +68,13 @@ const Index = () => {
         reader.readAsDataURL(selectedFile);
       });
 
-      // Extract base64 data from data URL
       const base64Data = imageData.split(",")[1];
       const mimeType = imageData.split(";")[0].split(":")[1];
 
-      // Use custom room name for "other" type
-      const roomTypeToSend = selectedRoom === "other" && customRoomName 
-        ? customRoomName 
+      const roomTypeToSend = selectedRoom === "other" && customRoomName
+        ? customRoomName
         : selectedRoom;
 
-      // Build the prompt
       const styleDescriptions: Record<string, string> = {
         modern: "clean lines, minimalist furniture, neutral colors with bold accents, contemporary design",
         scandinavian: "light wood, white walls, cozy textiles, hygge atmosphere, functional simplicity",
@@ -112,60 +85,34 @@ const Index = () => {
       };
 
       const styleDescription = styleDescriptions[selectedStyle] || selectedStyle;
-      
-      let prompt = `Transform this interior space into a ${selectedStyle} style design. 
+
+      const prompt = `Transform this interior space into a ${selectedStyle} style design. 
 Apply these design characteristics: ${styleDescription}.
 ${roomTypeToSend ? `This is a ${roomTypeToSend}.` : ""}
 ${selectedAppliances.length > 0 ? `Include or enhance these elements: ${selectedAppliances.join(", ")}.` : ""}
 Keep the same room layout and perspective. Generate a photorealistic redesigned version of this space.`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64Data
-                  }
-                }
-              ]
-            }],
-            generationConfig: {
-              responseModalities: ["image", "text"]
-            }
-          }),
-        }
-      );
+      const { data, error } = await supabase.functions.invoke("redesign-room", {
+        body: { prompt, imageBase64: base64Data, mimeType },
+      });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || "Failed to redesign image");
+      if (error) {
+        throw new Error(error.message || "Failed to redesign image");
       }
 
-      // Extract generated image from response
-      const candidates = data.candidates;
-      if (candidates && candidates[0]?.content?.parts) {
-        for (const part of candidates[0].content.parts) {
-          if (part.inline_data) {
-            const generatedImageUrl = `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
-            setGeneratedImage(generatedImageUrl);
-            toast({
-              title: "Success!",
-              description: "Your image has been redesigned",
-            });
-            return;
-          }
-        }
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
-      throw new Error("No image generated in response");
+      if (data?.imageUrl) {
+        setGeneratedImage(data.imageUrl);
+        toast({
+          title: "Success!",
+          description: "Your room has been redesigned",
+        });
+      } else {
+        throw new Error("No image generated in response");
+      }
     } catch (error) {
       console.error("Error generating image:", error);
       toast({
@@ -182,7 +129,7 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-secondary">
       {/* Hero Section */}
       <header className="relative overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 opacity-20"
           style={{
             backgroundImage: `url(${heroImage})`,
@@ -191,28 +138,17 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/90 to-background" />
-        
+
         <div className="relative container mx-auto px-4 py-20 text-center">
-          <div className="absolute top-4 right-4">
-            <Button
-              variant="outline"
-              onClick={handleSignOut}
-              className="gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
-          
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
             <Sparkles className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium text-primary">AI-Powered Design</span>
           </div>
-          
+
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
             AI Designer
           </h1>
-          
+
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-8">
             Transform your interior spaces with AI. Upload an image and redesign it in any style instantly.
           </p>
@@ -289,7 +225,7 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-muted-foreground border-t border-border mt-20">
-        <p>Powered by Gemini AI • Transform your spaces with artificial intelligence</p>
+        <p>Powered by AI • Transform your spaces with artificial intelligence</p>
       </footer>
     </div>
   );
