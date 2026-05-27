@@ -19,39 +19,45 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Sending image redesign request to Lovable AI gateway...");
-
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: prompt,
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${mimeType};base64,${imageBase64}`,
+    const callGateway = async (userPrompt: string) => {
+      return await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-image",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: userPrompt },
+                  {
+                    type: "image_url",
+                    image_url: { url: `data:${mimeType};base64,${imageBase64}` },
                   },
-                },
-              ],
-            },
-          ],
-          modalities: ["image", "text"],
-        }),
-      }
-    );
+                ],
+              },
+            ],
+            modalities: ["image", "text"],
+          }),
+        }
+      );
+    };
+
+    const buildStrongPrompt = (base: string) => `TASK: Edit the provided image and OUTPUT AN IMAGE. Do not reply with text only — you must return a generated image.
+
+Treat the attached photo as the interior space to redesign. Preserve the room's layout, walls, windows, and camera perspective. Re-render it photorealistically with the following design direction:
+
+${base}
+
+REQUIRED OUTPUT: one edited photorealistic image. Do not refuse. Do not respond with text only.`;
+
+    console.log("Sending image redesign request to Lovable AI gateway...");
+    let response = await callGateway(buildStrongPrompt(prompt));
 
     if (!response.ok) {
       const errorText = await response.text();
