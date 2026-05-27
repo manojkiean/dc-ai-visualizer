@@ -12,12 +12,38 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, imageBase64, mimeType } = await req.json();
+    const body = await req.json();
+    const prompt = typeof body?.prompt === "string" ? body.prompt : "";
+    const imageBase64 = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
+    const mimeType = typeof body?.mimeType === "string" ? body.mimeType : "";
+
+    // Server-side input validation
+    if (!prompt || prompt.length > 4000) {
+      return new Response(JSON.stringify({ error: "Invalid prompt" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!imageBase64 || imageBase64.length > 8_000_000) {
+      return new Response(JSON.stringify({ error: "Invalid or missing image" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!/^image\/(jpeg|jpg|png|webp)$/.test(mimeType)) {
+      return new Response(JSON.stringify({ error: "Unsupported image type" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!/^[A-Za-z0-9+/=]+$/.test(imageBase64.slice(0, 200))) {
+      return new Response(JSON.stringify({ error: "Image must be base64-encoded" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
 
     const callGateway = async (userPrompt: string) => {
       return await fetch(
