@@ -94,8 +94,13 @@ const Index = () => {
       const base64Data = resizedDataUrl.split(",")[1];
       const mimeType = resizedDataUrl.split(";")[0].split(":")[1];
 
-      const roomTypeToSend = selectedRoom === "other" && customRoomName
-        ? customRoomName
+      // Sanitize custom room name: letters, numbers, spaces, hyphens only; max 50 chars
+      const sanitizedCustomRoom = customRoomName
+        .replace(/[^A-Za-z0-9\s-]/g, "")
+        .trim()
+        .slice(0, 50);
+      const roomTypeToSend = selectedRoom === "other" && sanitizedCustomRoom
+        ? sanitizedCustomRoom
         : selectedRoom;
 
       const styleDescriptions: Record<string, string> = {
