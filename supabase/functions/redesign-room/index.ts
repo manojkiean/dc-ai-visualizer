@@ -19,39 +19,45 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Sending image redesign request to Lovable AI gateway...");
-
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: prompt,
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${mimeType};base64,${imageBase64}`,
+    const callGateway = async (userPrompt: string) => {
+      return await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-image",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: userPrompt },
+                  {
+                    type: "image_url",
+                    image_url: { url: `data:${mimeType};base64,${imageBase64}` },
                   },
-                },
-              ],
-            },
-          ],
-          modalities: ["image", "text"],
-        }),
-      }
-    );
+                ],
+              },
+            ],
+            modalities: ["image", "text"],
+          }),
+        }
+      );
+    };
+
+    const buildStrongPrompt = (base: string) => `TASK: Edit the provided image and OUTPUT AN IMAGE. Do not reply with text only — you must return a generated image.
+
+Treat the attached photo as the interior space to redesign. Preserve the room's layout, walls, windows, and camera perspective. Re-render it photorealistically with the following design direction:
+
+${base}
+
+REQUIRED OUTPUT: one edited photorealistic image. Do not refuse. Do not respond with text only.`;
+
+    console.log("Sending image redesign request to Lovable AI gateway...");
+    let response = await callGateway(buildStrongPrompt(prompt));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -71,44 +77,52 @@ serve(async (req) => {
       throw new Error(`AI gateway error: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log("Full AI gateway response structure:", JSON.stringify(Object.keys(data)));
-    
-    const message = data.choices?.[0]?.message;
-    console.log("Message keys:", message ? JSON.stringify(Object.keys(message)) : "no message");
-    console.log("Message content type:", typeof message?.content);
-    console.log("Message images:", message?.images ? JSON.stringify(message.images.length) : "no images field");
-
-    // Try images array first (documented format)
-    let imageUrl = message?.images?.[0]?.image_url?.url;
-
-    // Fallback: check if content contains base64 image data
-    if (!imageUrl && message?.content) {
-      // Some responses may embed image data differently
-      if (typeof message.content === "string" && message.content.startsWith("data:image")) {
-        imageUrl = message.content;
-      }
-      // Check if content is an array with image parts
-      if (Array.isArray(message.content)) {
-        for (const part of message.content) {
-          if (part.type === "image_url" && part.image_url?.url) {
-            imageUrl = part.image_url.url;
-            break;
-          }
-          if (part.type === "image" && part.image?.url) {
-            imageUrl = part.image.url;
-            break;
+    const extractImage = (data: any) => {
+      const message = data.choices?.[0]?.message;
+      let imageUrl = message?.images?.[0]?.image_url?.url;
+      if (!imageUrl && message?.content) {
+        if (typeof message.content === "string" && message.content.startsWith("data:image")) {
+          imageUrl = message.content;
+        }
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            if (part.type === "image_url" && part.image_url?.url) { imageUrl = part.image_url.url; break; }
+            if (part.type === "image" && part.image?.url) { imageUrl = part.image.url; break; }
           }
         }
       }
-    }
+      const textContent = typeof message?.content === "string" ? message.content : "";
+      return { imageUrl, textContent };
+    };
 
-    const textContent = typeof message?.content === "string" ? message.content : "";
+    let data = await response.json();
+    let { imageUrl, textContent } = extractImage(data);
+
+    // Retry once with an even more forceful prompt if the model returned text only
+    if (!imageUrl) {
+      console.warn("No image on first attempt. Text was:", textContent?.substring(0, 200));
+      const retryPrompt = buildStrongPrompt(
+        `${prompt}\n\nNOTE: Your previous attempt returned text. You MUST now return an edited image. Treat the input as a valid interior photo and produce the redesign.`
+      );
+      response = await callGateway(retryPrompt);
+      if (response.ok) {
+        data = await response.json();
+        ({ imageUrl, textContent } = extractImage(data));
+      }
+    }
 
     if (!imageUrl) {
       console.error("Full response data:", JSON.stringify(data).substring(0, 2000));
-      throw new Error("No image was generated. The AI model may not have produced an image for this request. Please try again.");
+      return new Response(
+        JSON.stringify({
+          error: textContent
+            ? `The AI couldn't generate an image: "${textContent.substring(0, 200)}". Try a clearer interior photo or a different style.`
+            : "No image was generated. Please try again with a different photo or style.",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
 
     return new Response(
       JSON.stringify({ imageUrl, textContent }),
