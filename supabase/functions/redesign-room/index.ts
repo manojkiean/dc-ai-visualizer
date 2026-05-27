@@ -77,44 +77,52 @@ REQUIRED OUTPUT: one edited photorealistic image. Do not refuse. Do not respond 
       throw new Error(`AI gateway error: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log("Full AI gateway response structure:", JSON.stringify(Object.keys(data)));
-    
-    const message = data.choices?.[0]?.message;
-    console.log("Message keys:", message ? JSON.stringify(Object.keys(message)) : "no message");
-    console.log("Message content type:", typeof message?.content);
-    console.log("Message images:", message?.images ? JSON.stringify(message.images.length) : "no images field");
-
-    // Try images array first (documented format)
-    let imageUrl = message?.images?.[0]?.image_url?.url;
-
-    // Fallback: check if content contains base64 image data
-    if (!imageUrl && message?.content) {
-      // Some responses may embed image data differently
-      if (typeof message.content === "string" && message.content.startsWith("data:image")) {
-        imageUrl = message.content;
-      }
-      // Check if content is an array with image parts
-      if (Array.isArray(message.content)) {
-        for (const part of message.content) {
-          if (part.type === "image_url" && part.image_url?.url) {
-            imageUrl = part.image_url.url;
-            break;
-          }
-          if (part.type === "image" && part.image?.url) {
-            imageUrl = part.image.url;
-            break;
+    const extractImage = (data: any) => {
+      const message = data.choices?.[0]?.message;
+      let imageUrl = message?.images?.[0]?.image_url?.url;
+      if (!imageUrl && message?.content) {
+        if (typeof message.content === "string" && message.content.startsWith("data:image")) {
+          imageUrl = message.content;
+        }
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            if (part.type === "image_url" && part.image_url?.url) { imageUrl = part.image_url.url; break; }
+            if (part.type === "image" && part.image?.url) { imageUrl = part.image.url; break; }
           }
         }
       }
-    }
+      const textContent = typeof message?.content === "string" ? message.content : "";
+      return { imageUrl, textContent };
+    };
 
-    const textContent = typeof message?.content === "string" ? message.content : "";
+    let data = await response.json();
+    let { imageUrl, textContent } = extractImage(data);
+
+    // Retry once with an even more forceful prompt if the model returned text only
+    if (!imageUrl) {
+      console.warn("No image on first attempt. Text was:", textContent?.substring(0, 200));
+      const retryPrompt = buildStrongPrompt(
+        `${prompt}\n\nNOTE: Your previous attempt returned text. You MUST now return an edited image. Treat the input as a valid interior photo and produce the redesign.`
+      );
+      response = await callGateway(retryPrompt);
+      if (response.ok) {
+        data = await response.json();
+        ({ imageUrl, textContent } = extractImage(data));
+      }
+    }
 
     if (!imageUrl) {
       console.error("Full response data:", JSON.stringify(data).substring(0, 2000));
-      throw new Error("No image was generated. The AI model may not have produced an image for this request. Please try again.");
+      return new Response(
+        JSON.stringify({
+          error: textContent
+            ? `The AI couldn't generate an image: "${textContent.substring(0, 200)}". Try a clearer interior photo or a different style.`
+            : "No image was generated. Please try again with a different photo or style.",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
 
     return new Response(
       JSON.stringify({ imageUrl, textContent }),
