@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
+import { SampleDesigns } from "@/components/SampleDesigns";
 import { StyleSelector } from "@/components/StyleSelector";
 import { RoomTypeSelector } from "@/components/RoomTypeSelector";
 import { ApplianceSelector } from "@/components/ApplianceSelector";
@@ -192,6 +193,8 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
             onClear={handleClear}
           />
         </section>
+
+        {!selectedImagePreview && <SampleDesigns />}
 
         {selectedImagePreview && (
           <section className="max-w-6xl mx-auto">
