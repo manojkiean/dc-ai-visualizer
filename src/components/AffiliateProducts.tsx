@@ -3,7 +3,7 @@ import { Button } from "./ui/button";
 import { ExternalLink, ShoppingBag } from "lucide-react";
 
 // TODO: Replace with your Amazon Associates tag
-const AMAZON_AFFILIATE_TAG = "yourtag-20";
+const AMAZON_AFFILIATE_TAG = "dialchimpuk0f-21";
 
 type Product = {
   title: string;
@@ -101,7 +101,7 @@ const fallbackByRoom: Record<string, Product[]> = {
 };
 
 const buildAmazonUrl = (keyword: string) =>
-  `https://www.amazon.com/s?k=${keyword}&tag=${AMAZON_AFFILIATE_TAG}`;
+  `https://www.amazon.co.uk/s?k=${keyword}&tag=${AMAZON_AFFILIATE_TAG}`;
 
 interface AffiliateProductsProps {
   selectedAppliances: string[];
