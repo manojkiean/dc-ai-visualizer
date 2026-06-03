@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { SampleDesigns } from "@/components/SampleDesigns";
+import { AffiliateProducts } from "@/components/AffiliateProducts";
 import { StyleSelector } from "@/components/StyleSelector";
 import { RoomTypeSelector } from "@/components/RoomTypeSelector";
 import { ApplianceSelector } from "@/components/ApplianceSelector";
