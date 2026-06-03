@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { SampleDesigns } from "@/components/SampleDesigns";
+import { AffiliateProducts } from "@/components/AffiliateProducts";
 import { StyleSelector } from "@/components/StyleSelector";
 import { RoomTypeSelector } from "@/components/RoomTypeSelector";
 import { ApplianceSelector } from "@/components/ApplianceSelector";
@@ -185,7 +186,8 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-12 space-y-12">
+      <div className="container mx-auto px-4 py-12 flex flex-col lg:flex-row gap-8">
+        <main className="flex-1 min-w-0 space-y-12">
         <section className="max-w-4xl mx-auto">
           <ImageUpload
             onImageSelect={handleImageSelect}
@@ -252,7 +254,18 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
             />
           </section>
         )}
-      </main>
+        </main>
+
+        {selectedImagePreview && (selectedRoom || selectedAppliances.length > 0) && (
+          <div className="lg:w-80 lg:shrink-0">
+            <AffiliateProducts
+              selectedAppliances={selectedAppliances}
+              roomType={selectedRoom === "other" ? "living-room" : selectedRoom}
+            />
+          </div>
+        )}
+      </div>
+
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-muted-foreground border-t border-border mt-20">
