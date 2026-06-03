@@ -186,7 +186,8 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-12 space-y-12">
+      <div className="container mx-auto px-4 py-12 flex flex-col lg:flex-row gap-8">
+        <main className="flex-1 min-w-0 space-y-12">
         <section className="max-w-4xl mx-auto">
           <ImageUpload
             onImageSelect={handleImageSelect}
