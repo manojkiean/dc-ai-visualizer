@@ -254,7 +254,18 @@ Keep the same room layout and perspective. Generate a photorealistic redesigned 
             />
           </section>
         )}
-      </main>
+        </main>
+
+        {selectedImagePreview && (selectedRoom || selectedAppliances.length > 0) && (
+          <div className="lg:w-80 lg:shrink-0">
+            <AffiliateProducts
+              selectedAppliances={selectedAppliances}
+              roomType={selectedRoom === "other" ? "living-room" : selectedRoom}
+            />
+          </div>
+        )}
+      </div>
+
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-muted-foreground border-t border-border mt-20">
