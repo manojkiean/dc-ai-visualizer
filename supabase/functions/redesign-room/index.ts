@@ -32,6 +32,28 @@ serve(async (req) => {
     });
   }
 
+  // Per-IP daily rate limit (5 redesigns / day)
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim()
+    || req.headers.get("cf-connecting-ip")
+    || "unknown";
+  const DAILY_LIMIT = 5;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const adminClient = createClient(supabaseUrl, serviceKey);
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: usageRow } = await adminClient
+    .from("redesign_usage")
+    .select("count")
+    .eq("ip", ip)
+    .eq("day", today)
+    .maybeSingle();
+  const currentCount = usageRow?.count ?? 0;
+  if (currentCount >= DAILY_LIMIT) {
+    return new Response(
+      JSON.stringify({ error: `Daily limit reached (${DAILY_LIMIT} redesigns per day). Please try again tomorrow.` }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
 
     const body = await req.json();
@@ -172,8 +194,16 @@ REQUIRED OUTPUT: one edited photorealistic image. Do not refuse. Do not respond 
     }
 
 
+    // Increment usage on successful generation
+    await adminClient.from("redesign_usage").upsert({
+      ip,
+      day: today,
+      count: currentCount + 1,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "ip,day" });
+
     return new Response(
-      JSON.stringify({ imageUrl, textContent }),
+      JSON.stringify({ imageUrl, textContent, usage: { used: currentCount + 1, limit: DAILY_LIMIT } }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
