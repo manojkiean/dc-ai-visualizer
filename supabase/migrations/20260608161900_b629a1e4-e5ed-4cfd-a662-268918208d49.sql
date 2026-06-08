@@ -1,0 +1,1 @@
+REVOKE ALL ON public.redesign_usage FROM anon, authenticated;
