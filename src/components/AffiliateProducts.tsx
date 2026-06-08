@@ -11,9 +11,14 @@ type Product = {
   image: string;
 };
 
-// Helper to build an Unsplash image URL from a search term (free, no API key)
+// Helper to build a themed product image URL (loremflickr is stable and themed by keyword)
 const img = (q: string) =>
-  `https://source.unsplash.com/400x300/?${encodeURIComponent(q)}`;
+  `https://loremflickr.com/400/300/${encodeURIComponent(q.replace(/\s+/g, ","))}?lock=${Math.abs(
+    q.split("").reduce((a, c) => a + c.charCodeAt(0), 0)
+  )}`;
+
+const fallbackImg = (title: string) =>
+  `https://placehold.co/400x300/1a1a2e/e94560?text=${encodeURIComponent(title)}`;
 
 const productsByAppliance: Record<string, Product[]> = {
   "smart-fridge": [
