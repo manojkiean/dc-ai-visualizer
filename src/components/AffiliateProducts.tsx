@@ -269,6 +269,13 @@ export const AffiliateProducts = ({ selectedAppliances, roomType }: AffiliatePro
                   src={p.image}
                   alt={p.title}
                   loading="lazy"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    if (!el.dataset.fallback) {
+                      el.dataset.fallback = "1";
+                      el.src = fallbackImg(p.title);
+                    }
+                  }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
